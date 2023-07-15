@@ -15,6 +15,17 @@ mutable struct sample
     ce::Float64
 end
 
+#Adam optimizer
+mutable struct adam
+	alpha::Float64
+	yv::Float64
+	ys::Float64
+	e::Float64
+	k::Int64
+	v::Vector{Float64}
+	s::Vector{Float64}
+end
+
 #Overloaded operators
 Base.:<(x::sample, y::sample) = x.score < y.score
 Base.:>(x::sample, y::sample) = x.score > y.score
@@ -79,24 +90,28 @@ function optimize(constraint::sample, A, B, Bi, C, D)
     return f(average(population), constraint, A, B, Bi, C, D), sample_history, average_function_val
 end
 
-function optimize(s::sample, constraint::sample, A, B, Bi, C, D)
+function optimize(a::adam, s::sample, constraint::sample, A, B, Bi, C, D)
     curr = f(s, constraint, A, B, Bi, C, D).score
     prev = 0
     average_function_val = Vector{Float64}()
 
-    alpha = 1e-6
+	a.alpha = 1e-4
+	a.v = zeros(length(B))
+	a.s = zeros(length(B))
+	a.k = 0
+
     i = 1
     while abs(curr-prev) >= 1e-20
         println(i)
         push!(average_function_val, curr)
 
-        s = descent(s, grad(s, constraint, A, B, Bi, C, D), alpha)
+        s = step!(alpha, s, grad(s, constraint, A, B, Bi, C, D))
         s = f(s, constraint, A, B, Bi, C, D)
         prev = curr;
         curr = s.score
 
         if i % 1000 == 0
-            alpha /= 10
+            a.alpha /= 10
         end
         i += 1
     end
@@ -218,8 +233,7 @@ function mutate(zygotes::Vector{sample}, M)
     return [i + rand(d,length(i.q)) for i in zygotes]
 end
 
-#Gradient Descent
-
+#adam
 function grad(s::sample, constraint::sample, A, B, Bi, C, D)
     grad = Vector{Float64}()
     curr = f(s, constraint, A, B, Bi, C, D)
@@ -234,7 +248,14 @@ function grad(s::sample, constraint::sample, A, B, Bi, C, D)
     return grad
 end
 
-function descent(s::sample, grad::Vector{Float64}, alpha)
-    return s - alpha*normalize(grad)
-end
+initAdam() = adam(0.0, 0.0, 0.0, 0.0, 0, Vector{Float64}(), Vector{Float64}())
 
+function step!(a::adam, x::sample, grad::Vector{Float64})
+	a.v = a.yv*a.v + (1-a.yv)*grad
+	a.s = a.ys*a.s + (1-a.ys)*grad.*grad
+	
+	a.k += 1
+	v = a.v ./ (1-yv^k)
+	s = a.s ./ (1-ys^k)
+	return x - a.alpha*v ./ (sqrt.(s) .+ a.e)
+end
