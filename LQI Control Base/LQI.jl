@@ -58,10 +58,10 @@ function tf2ss(num, den)
 end
 
 function f(s::sample, constraint::sample, system::plant)
-    k = lqr(ss(system.A,system.B,system.C,system.D), s*s, 1.0)
+    k = lqr(ss(system), s*s, 1.0)
     
     #time domain results
-    timeresult = step(ss(system.A-system.B*k,system.Bi,system.C,system.D))
+    timeresult = step(ss(system, k))
     info = stepinfo(timeresult)
     s.tr = info.risetime
     s.ts = info.settlingtime
@@ -69,7 +69,7 @@ function f(s::sample, constraint::sample, system::plant)
     s.us = info.undershoot
 
     #frequency domain results
-    wgm, gm, wpm, pm = margin(ss(system.A-system.B*k, system.Bi, system.C, system.D))
+    wgm, gm, wpm, pm = margin(ss(system, k))
     s.gm = gm[1]
     s.pm = pm[1]
 
